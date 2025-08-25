@@ -192,7 +192,7 @@ class GameCenter:
     
     def open_tictactoe(self):
         try:
-            subprocess.Popen([sys.executable, "tres_en_raya.py"])
+            subprocess.Popen([sys.executable, "TicTacTae.py"])
         except Exception as e:
             self.show_error_message("Tres en Raya", e)
     

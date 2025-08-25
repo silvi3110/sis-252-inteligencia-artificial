@@ -2,32 +2,33 @@ import pygame as pg
 from functools import lru_cache
 import random
 
+# ---------- Paleta (Pastel Cute) ----------
 C = {
-    'bg':     (250, 248, 255),   
-    'surf':   (226, 233, 255),   
-    'pill':   (235, 246, 252),   
-    'text':   (45, 55, 72),      
-    'muted':  (114, 125, 148),   
+    'bg':     (250, 248, 255),   # lavanda muy claro (fondo)
+    'surf':   (226, 233, 255),   # periwinkle suave (tarjetas/botón grande)
+    'pill':   (235, 246, 252),   # celeste-menta muy claro (chips/estado)
+    'text':   (45, 55, 72),      # slate oscuro texto principal
+    'muted':  (114, 125, 148),   # slate medio labels
 
-    'grid':   (108, 162, 156),   
-    'board':  (195, 246, 228),   
-    'neon':   (120, 255, 210),  
+    'grid':   (108, 162, 156),   # verde azulado suave (líneas tablero)
+    'board':  (195, 246, 228),   # menta pastel (TABLERO)
+    'neon':   (120, 255, 210),   # línea victoria (pastel brillante)
 
-    'X':      (255, 150, 170),   
-    'O':      (160, 200, 255),   
-    'accent': (180, 190, 255),   
+    'X':      (255, 150, 170),   # rosa pastel para X y títulos
+    'O':      (160, 200, 255),   # celeste pastel para O
+    'accent': (180, 190, 255),   # borde activo de píldoras
 
+    # Fondo del cartel de resultado — distinto al del tablero
+    'banner': (255, 235, 250),   # rosa/lila pastel
 
-    'banner': (255, 235, 250),  
-
-    
+    # Lila más CLARO para CTAs (reiniciar / resetear)
     'cta_fg': (170, 164, 255),
 
-    
+    # Rosa de texto un poquito más intenso para que destaque sobre el banner
     'title_pink': (235, 120, 160),
 }
 
-
+# ---------- Bitboards & combinatoria ----------
 WINS=[0b111000000,0b000111000,0b000000111,
       0b100100100,0b010010010,0b001001001,
       0b100010001,0b001010100]
@@ -38,21 +39,22 @@ CORNERS=[0,2,6,8]; SIDES=[1,3,5,7]; CENTER=4
 RC=[(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)]
 OPPOSITE={0:8,1:7,2:6,3:5,4:4,5:3,6:2,7:1,8:0}
 
-def win(m): return any((m&w)==w for w in WINS)
-def full(xm,om): return (xm|om)&0x1FF==0x1FF
-def popcnt(n): return n.bit_count()
-def marks(xm,om): return popcnt(xm|om)
+def win(m): return any((m&w)==w for w in WINS)   # Verifica si un jugador ganó
+def full(xm,om): return (xm|om)&0x1FF==0x1FF     # Revisa si el tablero está lleno
+def popcnt(n): return n.bit_count()    # Cuenta cuántos bits están en 1
+def marks(xm,om): return popcnt(xm|om)    # Retorna el número total de jugadas (X + O)
 
 def forced_move(xm,om,turn):
+    # Busca si hay una jugada obligada (para ganar o bloquear)
     me,op=(xm,om) if turn=='X' else (om,xm)
     empty=~(me|op)&0x1FF
-    
+    # ganar
     for w in WINS:
         need=w&~me
         if (need&empty) and popcnt(me&w)==2 and (op&w)==0:
             for i in range(9):
                 if need&(1<<i): return i
-    
+    # bloquear
     for w in WINS:
         need=w&~op
         if (need&empty) and popcnt(op&w)==2 and (me&w)==0:
@@ -61,6 +63,7 @@ def forced_move(xm,om,turn):
     return None
 
 def count_imminent_wins(me,op):
+    # Cuenta cuántas jugadas me darían victoria inmediata
     cnt=0
     for a,b,c in LINES:
         w=(1<<a)|(1<<b)|(1<<c)
@@ -69,6 +72,7 @@ def count_imminent_wins(me,op):
     return cnt
 
 def fork_move(me,op):
+    # Intenta crear un "fork": dos amenazas de ganar a la vez
     empty=~(me|op)&0x1FF
     for i in range(9):
         if empty&(1<<i) and count_imminent_wins(me|(1<<i),op)>=2:
@@ -76,6 +80,7 @@ def fork_move(me,op):
     return None
 
 def block_fork(me,op):
+        # Detecta si el rival puede hacer un fork y lo bloquea
     empty=~(me|op)&0x1FF
     forks=[i for i in range(9) if empty&(1<<i) and count_imminent_wins(op|(1<<i),me)>=2]
     if len(forks)==1: return forks[0]
@@ -99,6 +104,7 @@ def negamax(me,op,alpha=-1,beta=1):
     return best
 
 def best_move(xm,om,x_turn=True):
+    # Calcula la mejor jugada usando Negamax (elige la de mayor valor)
     me,op=(xm,om) if x_turn else (om,xm)
     empty=~(me|op)&0x1FF; best=-2; mv=None
     order=[4,0,2,6,8,1,3,5,7]
@@ -109,11 +115,13 @@ def best_move(xm,om,x_turn=True):
     return mv
 
 def manhattan(i,j):
+    # Calcula distancia Manhattan entre dos casillas del tablero
     (r1,c1),(r2,c2)=RC[i],RC[j]
     return abs(r1-r2)+abs(c1-c2)
 
-
+# ---------- Libro de aperturas (naturalidad) ----------
 def opening_choice(diff):
+    # Decide jugada de apertura según dificultad (easy, medium, hard)
     r=random.random()
     if diff=='easy':
         if r<0.55: return random.choice(SIDES)
@@ -126,6 +134,7 @@ def opening_choice(diff):
     return CENTER if r<0.50 else random.choice(CORNERS)
 
 def book_move(xm,om,turn,diff,last_h):
+    # “Libro de aperturas”: jugadas típicas iniciales según dificultad
     me,op=(xm,om) if turn=='X' else (om,xm)
     n=marks(xm,om)
     empty=~(me|op)&0x1FF
@@ -164,13 +173,15 @@ def book_move(xm,om,turn,diff,last_h):
                 if sides: return random.choice(sides)
     return None
 
-
+# ---------- IA principal ----------
 def ai_pick(xm,om,turn,diff,last_h=None):
+    # Decide el movimiento de la IA según dificultad
     me,op=(xm,om) if turn=='X' else (om,xm)
     empty=~(me|op)&0x1FF
     moves=[i for i in range(9) if empty&(1<<i)]
     n=marks(xm,om)
 
+    # Jugadas de apertura (inicio de partida)
     if diff!='easy':
         bm=book_move(xm,om,turn,diff,last_h)
         if bm is not None and (empty&(1<<bm)): return bm
@@ -178,6 +189,7 @@ def ai_pick(xm,om,turn,diff,last_h=None):
         if n==0:
             return opening_choice(diff)
 
+    # Movimiento forzado: ganar o bloquear
     fm=forced_move(xm,om,turn)
     if fm is not None:
         if diff=='easy' and random.random()<0.65:
@@ -185,6 +197,7 @@ def ai_pick(xm,om,turn,diff,last_h=None):
         else:
             return fm
 
+    # Buscar fork (dos formas de ganar) o bloquear fork del rival
     if diff!='easy':
         mv=fork_move(me,op)
         if mv is not None: return mv
@@ -192,6 +205,7 @@ def ai_pick(xm,om,turn,diff,last_h=None):
             mv=block_fork(me,op)
             if mv is not None: return mv
 
+    # Función para puntuar casillas según centro/esquinas/lados y amenazas
     def score(i):
         if not (empty&(1<<i)): return -999
         s=0.0
@@ -207,7 +221,9 @@ def ai_pick(xm,om,turn,diff,last_h=None):
         if count_imminent_wins(op|(1<<i),me)>=2: s -= 3.0
         return s
 
+    # Estrategias según nivel de dificultad
     if diff=='easy':
+        # Juega casi aleatorio, con algo de lógica
         if random.random()<0.85:
             if last_h is not None:
                 neigh=[i for i in moves if manhattan(i,last_h)==1]
@@ -220,6 +236,7 @@ def ai_pick(xm,om,turn,diff,last_h=None):
         return bm if bm is not None else (random.choice(moves) if moves else None)
 
     if diff=='medium':
+        # Combina Negamax con jugadas menos óptimas para parecer humano
         if random.random()<0.60:
             bm=best_move(xm,om,turn=='X')
             if bm is not None: return bm
@@ -230,19 +247,22 @@ def ai_pick(xm,om,turn,diff,last_h=None):
         if len(pool)>=2 and random.random()<0.35:
             pool=pool[:-1]
         return random.choice(pool) if pool else max(scored)[1]
-
+    
+    # Difícil → usa Negamax puro (casi invencible)
     bm=best_move(xm,om,turn=='X')
     if bm is not None: return bm
     scored=[(score(i),i) for i in moves]
     return max(scored)[1] if scored else None
 
 def win_mask(mask):
+    # Revisa si hay línea ganadora y devuelve su máscara
     for w in WINS:
         if (mask&w)==w: return w
     return 0
 
-
+# ---------- Fuentes ----------
 def choose_font():
+    # Elige una fuente bonita entre las disponibles
     prefer = ['quicksand','nunito','rubik','mulish','comfortaa','fredoka',
               'poppins','segoeui','roboto','arial']
     avail=set(pg.font.get_fonts())
@@ -251,6 +271,7 @@ def choose_font():
     return None
 
 def make_fonts(w):
+    # Ajusta tamaños de letra según ancho de la ventana
     base=max(12,int(min(w,1300)*0.013))
     name=choose_font()
     return {
@@ -260,21 +281,22 @@ def make_fonts(w):
         'lg':pg.font.SysFont(name,int(base*2.45),bold=True),
         'xl':pg.font.SysFont(name,int(base*4.05),bold=True),
     }
-def T(font,msg,color): return font.render(msg,True,color)
+def T(font,msg,color): return font.render(msg,True,color)     # Renderiza un texto en pantalla
 
-
+# ---------- Estado ----------
 class State:
+    # Clase que guarda todo el estado del juego
     def __init__(self):
-        self.diff='medium'; self.human='X'; self.turn='X'
+        self.diff='medium'; self.human='X'; self.turn='X' # qué ficha usa el jugador # de quién es el turno
         self.xm=0; self.om=0; self.over=False; self.wmask=0
         self.wait=False; self.scores={'W':0,'D':0,'L':0}
         self.status="Comienza la partida o elige jugador."
         self.last_h=None
 S=State()
 
-
+# ---------- Pygame ----------
 pg.init()
-pg.display.set_caption("Tic-Tac-Toe — Retro Arcade (Responsive)")
+pg.display.set_caption("Tic-Tac-Toe — Pastel Cute (Responsive)")
 info=pg.display.Info()
 W0=min(1280,int(info.current_w*0.9))
 H0=min(800,  int(info.current_h*0.9))
@@ -282,13 +304,18 @@ screen=pg.display.set_mode((W0,H0), pg.RESIZABLE|pg.HWSURFACE|pg.DOUBLEBUF)
 F=make_fonts(W0)
 
 MARGIN=24
+# Dibuja rectángulos con bordes redondeados (usado en botones/tablero)
 def rrect(s,color,rect,r=16,w=0): pg.draw.rect(s,color,rect,w,border_radius=r)
 
-
+# ---------- Layout (mismo margen arriba/abajo, tres gaps iguales g) ----------
 def relayout():
+    """
+    Mantiene el mismo margen exterior arriba y abajo (=MARGIN).
+    Entre SCORE → TABLERO → ESTADO → BOTÓN hay tres gaps iguales g.
+    """
     global TOP, SCORE, BOARD, STAT, BTN
     w, h = screen.get_size()
-    F.update(make_fonts(w))
+    F.update(make_fonts(w)) # recalcula fuentes si se cambia tamaño
 
     row_h = max(64, int(h * 0.09))
     TOP   = pg.Rect(MARGIN, MARGIN, w - 2 * MARGIN, row_h)
@@ -311,14 +338,16 @@ def relayout():
 
 relayout()
 
-
+# ---------- Dibujo ----------
 def draw_pill_text(s, rect, text, active=False):
+    # Dibuja un botón tipo píldora con texto
     rrect(s, C['pill'], rect, 18)
     if active: pg.draw.rect(s, C['accent'], rect, 2, 18)
     img=T(F['rg'], text, C['text'])
     s.blit(img, img.get_rect(center=rect.center))
 
 def draw_top(s):
+    # Dibuja barra superior con dificultad y selección de X/O
     labels=[("Fácil","easy"),("Medio","medium"),("Imposible","hard")]
     symbs =["X","O"]
     def pill_w(txt,pad=22): return T(F['rg'],txt,C['text']).get_width()+pad*2
@@ -343,6 +372,7 @@ def draw_top(s):
     return pills
 
 def draw_score(s):
+    # Dibuja marcador de partidas (ganadas, empatadas, perdidas)
     rrect(s, C['surf'], SCORE, 16)
     y_center = SCORE.y + SCORE.h//2
     entries=[]
@@ -363,11 +393,12 @@ def draw_score(s):
         gx = rr.right + gap
     rr=pg.Rect(SCORE.right-120, y_center-14, 100, 28)
     rrect(s, C['pill'], rr, 14)
-    lab=T(F['rg'],"RESETEAR",C['cta_fg']) 
+    lab=T(F['rg'],"RESETEAR",C['cta_fg'])  # mismo lila del CTA
     s.blit(lab, lab.get_rect(center=rr.center))
     return rr
 
 def draw_board(s):
+    # Dibuja tablero y las fichas (X y O)
     rrect(s, C['board'], BOARD, 18)
     step=BOARD.w//3; g=max(6,BOARD.w//170)
     for i in range(1,3):
@@ -383,14 +414,15 @@ def draw_board(s):
         elif S.om&(1<<i):
             pg.draw.circle(s,C['O'],cell.center,cell.w//2-pad,thickO)
 
-
+# ---------- Línea ganadora (mapeo correcto) ----------
 def neon_line(s,mask):
+    # Dibuja la línea brillante cuando alguien gana
     if mask == 0: return
     step = BOARD.w // 3
     glow, core = 18, 10
     col = C['neon']
 
-    
+    # Filas (arriba→abajo)
     if   mask == 0b000000111: y = BOARD.top + step//2
     elif mask == 0b000111000: y = BOARD.top + 3*step//2
     elif mask == 0b111000000: y = BOARD.top + 5*step//2
@@ -399,7 +431,7 @@ def neon_line(s,mask):
         a=(BOARD.left-24, y); b=(BOARD.right+24, y)
         pg.draw.line(s,col,a,b,glow); pg.draw.line(s,col,a,b,core); return
 
-    
+    # Columnas (izquierda→derecha)
     if   mask == 0b001001001: x = BOARD.left + step//2
     elif mask == 0b010010010: x = BOARD.left + 3*step//2
     elif mask == 0b100100100: x = BOARD.left + 5*step//2
@@ -408,16 +440,17 @@ def neon_line(s,mask):
         a=(x, BOARD.top-24); b=(x, BOARD.bottom+24)
         pg.draw.line(s,col,a,b,glow); pg.draw.line(s,col,a,b,core); return
 
-    
+    # Diagonales
     if   mask == 0b100010001:
         a=(BOARD.left-24,  BOARD.top-24)
         b=(BOARD.right+24, BOARD.bottom+24)
-    else: 
+    else:  # 0b001010100
         a=(BOARD.right+24, BOARD.top-24)
         b=(BOARD.left-24,  BOARD.bottom+24)
     pg.draw.line(s,col,a,b,glow); pg.draw.line(s,col,a,b,core)
 
 def draw_bottom(s):
+    # Dibuja el cuadro inferior con el estado (tu turno, pensando, finalizado)
     rrect(s, C['pill'], STAT, 14)
     lab=T(F['rg'],S.status,C['text'])
     s.blit(lab, lab.get_rect(center=STAT.center))
@@ -426,37 +459,42 @@ def draw_bottom(s):
     s.blit(lab2, lab2.get_rect(center=BTN.center))
 
 def draw_banner(s,kind):
+    # Dibuja un cartel grande en el centro cuando hay empate o victoria
     box=pg.Rect(0,0,min(560,int(screen.get_width()*0.9)),210); box.center=(screen.get_width()//2,BOARD.centery)
     rrect(s, C['banner'], box, 20)
     TX=T(F['xl'],"X",C['X']); TO=T(F['xl'],"O",C['O'])
-    
+    # MÁS UNIDOS: gap reducido de 34px → 24px
     gap = 24
     s.blit(TX,TX.get_rect(midright=(box.centerx-gap,box.centery-8)))
     s.blit(TO,TO.get_rect(midleft =(box.centerx+gap,box.centery-8)))
     msg="¡EMPATE!" if kind=='D' else "¡GANADOR!"
-    
+    # Ahora EMPATE también va en rosa y con un tono que resalta sobre el banner
     title_col = C['title_pink']
     lab=T(F['sb'],msg,title_col)
     s.blit(lab, lab.get_rect(center=(box.centerx,box.centery+58)))
 
-
+# ---------- Juego ----------
 def cell_at(pos):
+    # Convierte un click del mouse en la celda del tablero (0-8)
     if not BOARD.collidepoint(pos): return None
     step=BOARD.w//3
     c=(pos[0]-BOARD.left)//step; r=(pos[1]-BOARD.top)//step
     i=int(r*3+c); return i if 0<=i<=8 else None
 
 def mark(i,ch):
+    # Marca la celda 'i' con la ficha 'ch' (X o O) si está libre
     if (S.xm|S.om)&(1<<i): return False
     if ch=='X': S.xm|=(1<<i)
     else:       S.om|=(1<<i)
     return True
 
 def win_mask_for_current():
+    # Revisa si X u O tienen una línea ganadora y devuelve la máscara
     wx=win_mask(S.xm); wo=win_mask(S.om)
     return wx if wx else wo
 
 def finish():
+    # Verifica si terminó la partida:
     S.wmask=win_mask_for_current()
     if S.wmask:
         S.over=True
@@ -469,10 +507,12 @@ def finish():
 
 AI_EVENT=pg.USEREVENT+1
 def ask_ai():
+    # Activa un temporizador → simula que la IA "piensa"
     if S.over: return
     S.status="Pensando…"; S.wait=True; pg.time.set_timer(AI_EVENT,700,True)
 
 def ai_turn():
+    # Juega el turno de la IA usando la función ai_pick()
     if S.over: S.wait=False; return
     mv=ai_pick(S.xm,S.om,S.turn,S.diff,S.last_h)
     if mv is None: S.wait=False; return
@@ -482,32 +522,33 @@ def ai_turn():
     S.wait=False
 
 def new_match():
+    # Reinicia todo para comenzar una nueva partida
     S.xm=S.om=0; S.over=False; S.wmask=0; S.last_h=None
     negamax.cache_clear()
     S.turn='X'; S.status="Tu turno." if S.human=='X' else "Pensando…"
     if S.human=='O': ask_ai()
 
-
-def main():
+# ---------- Main loop ----------
+def main(): # prepara layout y arranca partida nueva
     relayout(); new_match()
     clk=pg.time.Clock(); run=True
     while run:
-        for e in pg.event.get():
+        for e in pg.event.get(): # Manejo de eventos (cerrar, click, resize)
             if e.type==pg.QUIT: run=False
-            elif e.type==pg.VIDEORESIZE:
+            elif e.type==pg.VIDEORESIZE: # si cambia tamaño ventana → reacomoda layout
                 w=max(900,e.w); h=max(680,e.h)
                 pg.display.set_mode((w,h), pg.RESIZABLE|pg.HWSURFACE|pg.DOUBLEBUF)
                 relayout()
             elif e.type==pg.MOUSEBUTTONDOWN and e.button==1:
                 pos=e.pos
-                pills=draw_top(screen)  
+                pills=draw_top(screen)  # hitboxes actuales
                 for r,info in pills:
                     if r.collidepoint(pos):
                         typ,val=info
                         if   typ=='diff':   S.diff=val
                         elif typ=='human':  S.human=val; new_match()
                         break
-                
+                # botón reset
                 y_center=SCORE.y+SCORE.h//2
                 reset_rect=pg.Rect(SCORE.right-120, y_center-14, 100, 28)
                 if reset_rect.collidepoint(pos): S.scores={'W':0,'D':0,'L':0}
@@ -521,18 +562,18 @@ def main():
                             S.turn='O' if S.turn=='X' else 'X'; ask_ai()
                 if BTN.collidepoint(pos): new_match()
             elif e.type==AI_EVENT:
-                ai_turn()
+                ai_turn() # ejecuta jugada de la IA después del "pensando"
 
-        
+        # render
         screen.fill(C['bg'])
         draw_top(screen); draw_score(screen); draw_board(screen); draw_bottom(screen)
 
-        if S.over:
-            neon_line(screen, S.wmask)           
-            draw_banner(screen,'D' if (S.wmask==0) else S.turn) 
+        if S.over:  # si la partida terminó → mostrar línea ganadora o empate
+            neon_line(screen, S.wmask)            # debajo
+            draw_banner(screen,'D' if (S.wmask==0) else S.turn)  # encima
 
-        pg.display.flip(); clk.tick(60)
+        pg.display.flip(); clk.tick(60) # actualiza la ventana
     pg.quit()
 
 if __name__=="__main__":
-    main()
+    main() # punto de entrada del programa
